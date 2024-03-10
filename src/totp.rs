@@ -114,6 +114,10 @@ impl Totp {
 
         Ok(None)
     }
+
+    pub fn remaining_seconds(&self, seconds_since_epoch: u64) -> u64 {
+        self.period - (seconds_since_epoch % self.period)
+    }
 }
 
 #[cfg(test)]
