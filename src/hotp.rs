@@ -1,99 +1,42 @@
-use std::{borrow::Cow, str::FromStr};
-
-use crate::{OTPHashAlgorithm, OTP};
-
+use crate::{
+    uri_helper::{self, otp_to_uri, OtpType, OtpUriInput},
+    Otp, OtpError, OtpHashAlgorithm,
+};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct HOTP {
+pub struct Hotp {
     pub(crate) secret: String,
-    algorithm: OTPHashAlgorithm,
+    pub(crate) algorithm: OtpHashAlgorithm,
     // How many digits to generate
-    digits: u32,
+    pub(crate) digits: u32,
     // The internal counter, used to generate the URI
-    counter: u64,
+    pub(crate) counter: u64,
 }
 
-impl OTP for HOTP {
+impl Otp for Hotp {
     fn get_digits(&self) -> u32 {
         self.digits
     }
 
-    fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String> {
-        let mut uri = url::Url::parse("otpauth://hotp/")?;
-
-        if issuer.is_some_and(|i| !i.is_empty()) {
-            uri.set_path(&format!("{}:{}", issuer.unwrap(), user));
-        } else {
-            uri.set_path(user);
-        }
-
-        {
-            let mut query_params = uri.query_pairs_mut();
-
-            query_params.append_pair("secret", &self.secret);
-
-            if issuer.is_some_and(|i| !i.is_empty()) {
-                query_params.append_pair("issuer", issuer.unwrap());
-            }
-
-            query_params
-                .append_pair("algorithm", &self.algorithm.to_string())
-                .append_pair("digits", &self.digits.to_string())
-                .append_pair("counter", &self.counter.to_string());
-        }
-
-        Ok(uri.to_string())
+    fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String, OtpError> {
+        otp_to_uri(OtpUriInput::Hotp(self), user, issuer)
     }
 
-    fn from_uri(uri: &str) -> Result<Self> {
-        let uri = url::Url::parse(uri)?;
-
-        let domain = uri.domain();
-        if domain.is_none() || domain.is_some_and(|d| d != "hotp") {
-            return Err(anyhow!("The provided URI is not from a HOTP"));
+    fn from_uri(uri: &str) -> Result<Self, OtpError> {
+        let result = uri_helper::otp_from_uri(uri, OtpType::Hotp)?;
+        match result {
+            uri_helper::OtpUriResult::Hotp(r) => Ok(r),
+            _ => panic!(),
         }
-
-        let mut secret = "".to_string();
-        let mut algorithm = OTPHashAlgorithm::default();
-        let mut counter = None;
-        let mut digits = 6;
-
-        for params in uri.query_pairs() {
-            match params.0 {
-                Cow::Borrowed("secret") => secret = params.1.to_string(),
-                Cow::Borrowed("algorithm") => {
-                    algorithm = OTPHashAlgorithm::from_str(params.1.as_ref())?
-                }
-                Cow::Borrowed("counter") => counter = Some(u64::from_str(params.1.as_ref())?),
-                Cow::Borrowed("digits") => digits = u32::from_str(params.1.as_ref())?,
-                _ => (),
-            }
-        }
-
-        if secret.is_empty() {
-            return Err(anyhow!("Secret could not be retrieved from the URI."));
-        }
-
-        if counter.is_none() {
-            return Err(anyhow!("Counter could not be retrieved from the URI."));
-        }
-        let counter = counter.unwrap();
-
-        Ok(Self {
-            secret,
-            algorithm,
-            counter,
-            digits,
-        })
     }
 }
 
-impl HOTP {
+impl Hotp {
     /// Creates the config for the [HMAC-based One-time Password Algorithm](http://en.wikipedia.org/wiki/HMAC-based_One-time_Password_Algorithm)
     /// (HOTP) given an RFC4648 base32 encoded secret
     ///
     /// Obs.: This method defaults to a 6-digit code.
-    pub fn new(secret: String, algorithm: OTPHashAlgorithm) -> Self {
+    pub fn new(secret: String, algorithm: OtpHashAlgorithm) -> Self {
         Self {
             secret,
             algorithm,
@@ -142,7 +85,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::rstest;
 
-    use crate::{hotp::HOTP, OTPHashAlgorithm, OTP};
+    use crate::{hotp::Hotp, Otp, OtpHashAlgorithm};
 
     #[rstest]
     #[case(0, 755224)]
@@ -156,9 +99,9 @@ mod tests {
     #[case(8, 399871)]
     #[case(9, 520489)]
     fn hotp(#[case] counter: u64, #[case] expected: u32) {
-        let hotp = HOTP::new(
+        let hotp = Hotp::new(
             "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_string(),
-            OTPHashAlgorithm::SHA1,
+            OtpHashAlgorithm::SHA1,
         );
 
         assert_eq!(hotp.generate(counter).unwrap(), expected);
@@ -172,12 +115,12 @@ mod tests {
     #[case("sha512", 6, 10,
         "otpauth://hotp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME+Co&algorithm=SHA512&digits=6&counter=10")]
     fn to_uri_test(
-        #[case] hash: OTPHashAlgorithm,
+        #[case] hash: OtpHashAlgorithm,
         #[case] digits: u32,
         #[case] counter: u64,
         #[case] expected: &str,
     ) {
-        let mut hotp_base = HOTP::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
+        let mut hotp_base = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
         hotp_base.with_digits(digits);
         hotp_base.with_counter(counter);
 
@@ -196,16 +139,16 @@ mod tests {
     #[case("sha512", 6, 10,
         "otpauth://hotp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME%20Co&algorithm=SHA512&digits=6&counter=10")]
     fn from_uri_test(
-        #[case] hash: OTPHashAlgorithm,
+        #[case] hash: OtpHashAlgorithm,
         #[case] digits: u32,
         #[case] counter: u64,
         #[case] input_uri: &str,
     ) {
-        let mut expected_hotp = HOTP::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
+        let mut expected_hotp = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
         expected_hotp.with_digits(digits);
         expected_hotp.with_counter(counter);
 
-        let generated_hotp = HOTP::from_uri(input_uri).unwrap();
+        let generated_hotp = Hotp::from_uri(input_uri).unwrap();
 
         assert_eq!(expected_hotp, generated_hotp);
         assert_eq!(

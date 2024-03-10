@@ -1,93 +1,41 @@
-use std::{borrow::Cow, str::FromStr};
-
-use crate::{OTPHashAlgorithm, OTP};
-
+use crate::{
+    uri_helper::{self, otp_to_uri, OtpType, OtpUriInput},
+    Otp, OtpError, OtpHashAlgorithm,
+};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TOTP {
-    secret: String,
-    algorithm: OTPHashAlgorithm,
-    period: u64,
-    digits: u32,
+pub struct Totp {
+    pub(crate) secret: String,
+    pub(crate) algorithm: OtpHashAlgorithm,
+    pub(crate) period: u64,
+    pub(crate) digits: u32,
 }
 
-impl OTP for TOTP {
+impl Otp for Totp {
     fn get_digits(&self) -> u32 {
         self.digits
     }
 
-    fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String> {
-        let mut uri = url::Url::parse("otpauth://totp/")?;
-
-        if issuer.is_some_and(|i| !i.is_empty()) {
-            uri.set_path(&format!("{}:{}", issuer.unwrap(), user));
-        } else {
-            uri.set_path(user);
-        }
-
-        {
-            let mut query_params = uri.query_pairs_mut();
-
-            query_params.append_pair("secret", &self.secret);
-
-            if issuer.is_some_and(|i| !i.is_empty()) {
-                query_params.append_pair("issuer", issuer.unwrap());
-            }
-
-            query_params
-                .append_pair("algorithm", &self.algorithm.to_string())
-                .append_pair("digits", &self.digits.to_string())
-                .append_pair("period", &self.period.to_string());
-        }
-
-        Ok(uri.to_string())
+    fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String, OtpError> {
+        otp_to_uri(OtpUriInput::Totp(self), user, issuer)
     }
 
-    fn from_uri(uri: &str) -> Result<Self> {
-        let uri = url::Url::parse(uri)?;
-
-        let domain = uri.domain();
-        if domain.is_none() || domain.is_some_and(|d| d != "totp") {
-            return Err(anyhow!("The provided URI is not from a TOTP"));
+    fn from_uri(uri: &str) -> Result<Self, OtpError> {
+        let result = uri_helper::otp_from_uri(uri, OtpType::Totp)?;
+        match result {
+            uri_helper::OtpUriResult::Totp(r) => Ok(r),
+            _ => panic!(),
         }
-
-        let mut secret = "".to_string();
-        let mut algorithm = OTPHashAlgorithm::default();
-        let mut period = 30;
-        let mut digits = 6;
-
-        for params in uri.query_pairs() {
-            match params.0 {
-                Cow::Borrowed("secret") => secret = params.1.to_string(),
-                Cow::Borrowed("algorithm") => {
-                    algorithm = OTPHashAlgorithm::from_str(params.1.as_ref())?
-                }
-                Cow::Borrowed("period") => period = u64::from_str(params.1.as_ref())?,
-                Cow::Borrowed("digits") => digits = u32::from_str(params.1.as_ref())?,
-                _ => (),
-            }
-        }
-
-        if secret.is_empty() {
-            return Err(anyhow!("Secret could not be retrieved from the URI."));
-        }
-
-        Ok(Self {
-            secret,
-            algorithm,
-            period,
-            digits,
-        })
     }
 }
 
-impl TOTP {
+impl Totp {
     /// Creates the config for the [Time-based One-time Password Algorithm](http://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
     /// (TOTP) given an RFC4648 base32 encoded secret, the period in seconds,
     /// and a skew in seconds.
     ///
     /// Obs.: This method defaults to a 6-digit code.
-    pub fn new(secret: String, algorithm: OTPHashAlgorithm, period: u64) -> Self {
+    pub fn new(secret: String, algorithm: OtpHashAlgorithm, period: u64) -> Self {
         Self {
             secret,
             algorithm,
@@ -105,7 +53,7 @@ impl TOTP {
         self
     }
 
-    /// Generates a TOTP from the provided seconds since the UNIX epoch
+    /// Generates a Totp from the provided seconds since the UNIX epoch
     /// truncated to the specified number of digits
     pub fn generate(&self, seconds_since_epoch: u64) -> Result<u32, OtpError> {
         let calculated_time = seconds_since_epoch / self.period;
@@ -160,7 +108,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::{fixture, rstest};
 
-    use crate::{totp::TOTP, OTPHashAlgorithm, OTP};
+    use crate::{totp::Totp, Otp, OtpHashAlgorithm};
 
     #[fixture]
     #[once]
@@ -204,11 +152,11 @@ mod tests {
     #[case(sha512_secret(), "sha512", 20000000000, "863826")]
     fn totp_test(
         #[case] secret: String,
-        #[case] hash: OTPHashAlgorithm,
+        #[case] hash: OtpHashAlgorithm,
         #[case] timestamp: u64,
         #[case] expected: &str,
     ) {
-        let mut totp_base = TOTP::new(secret, hash, 30);
+        let mut totp_base = Totp::new(secret, hash, 30);
         totp_base.with_digits(expected.len() as u32);
 
         let generated_otp = totp_base.generate(timestamp).unwrap();
@@ -223,12 +171,12 @@ mod tests {
     #[case("sha512", 6, 10,
         "otpauth://totp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME+Co&algorithm=SHA512&digits=6&period=10")]
     fn to_uri_test(
-        #[case] hash: OTPHashAlgorithm,
+        #[case] hash: OtpHashAlgorithm,
         #[case] digits: u32,
         #[case] period: u64,
         #[case] expected: &str,
     ) {
-        let mut totp_base = TOTP::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
+        let mut totp_base = Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
         totp_base.with_digits(digits);
 
         let generated_uri = totp_base
@@ -246,16 +194,16 @@ mod tests {
     #[case("sha512", 6, 10,
         "otpauth://totp/ACME%20Co:john.doe@email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME%20Co&algorithm=SHA512&digits=6&period=10")]
     fn from_uri_test(
-        #[case] hash: OTPHashAlgorithm,
+        #[case] hash: OtpHashAlgorithm,
         #[case] digits: u32,
         #[case] period: u64,
         #[case] input_uri: &str,
     ) {
         let mut expected_totp =
-            TOTP::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
+            Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
         expected_totp.with_digits(digits);
 
-        let totp_base = TOTP::from_uri(input_uri).unwrap();
+        let totp_base = Totp::from_uri(input_uri).unwrap();
 
         assert_eq!(expected_totp, totp_base);
         assert_eq!(
