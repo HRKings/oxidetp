@@ -3,7 +3,8 @@
 This is a simple crate that provides methods for generating HOTP and TOTP codes, supporting window verification for TOTPs, creating an URI for QR Codes and also importing a URI.
 
 ## Code Examples
-By reading the tests, you can get a feel of what the library does, but here is some examples
+
+By reading the examples and tests, you can get a feel of what the library does, but here is some snippets
 
 TOTP:
 
@@ -20,11 +21,11 @@ totp_base
     .with_digits(8);
 
 
-// Generate the code, in this example, the code will be generated from 123 seconds since the Unix Epoch
+// The generation code will return a u32 and the digits, to zero-pad use the to_string() method
 let generated_otp = totp_base.generate(123)?;
 
 // The generation code will create a u32 code, to zero-pad use the provided method
-totp_base.pad_code(generated_otp)
+generated_otp.to_string()
 
 // Generates the URI
 let generated_uri = totp_base.to_uri("john.doe@email.com", Some("ACME Co"))?;
@@ -55,8 +56,8 @@ let generated_otp = hotp_base.generate(123)?;
 // Alternatively, you can generate the code and update the counter, it is recommended that the counter is stored in another place (like a cache and/or database) for ease of access and distribution of the counter 
 let generated_otp = generate_and_update_counter.generate(123)?;
 
-// The generation code will create a u32 code, to zero-pad use the provided method
-hotp_base.pad_code(generated_otp)
+// The generation code will return a u32 and the digits, to zero-pad use the to_string() method
+generated_otp.to_string()
 
 // Generates the URI, remember to set the counter beforehand
 let generated_uri = hotp_base.to_uri("john.doe@email.com", Some("ACME Co"))?;
@@ -70,7 +71,7 @@ let parsed_hotp = HOTP::from_uri(&generated_uri)
 
 In case of TOTPs, the library does not provide a timestamp implementation, instead relying on the developer to pass the seconds since the Unix Epoch directly into the function, this was done because I didn't want to use the `chrono` or `time` crates as some people use one or another. I also recommend implementing a way to correct the time if the local one is wrong.
 
-If the necessity arises, I will implement those time functions into the code.
+If the necessity arises, I will implement those time functions into the code. For now, examples are provided for both crates
 
 ## References
 
