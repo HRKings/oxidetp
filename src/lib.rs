@@ -60,6 +60,29 @@ impl FromStr for OtpHashAlgorithm {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct OtpCode {
+    code: u32,
+    digits: u32,
+}
+
+impl OtpCode {
+    pub fn integer(&self) -> u32 {
+        self.code
+    }
+}
+
+impl Display for OtpCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:0padding$}",
+            self.code,
+            padding = (self.digits as usize)
+        )
+    }
+}
+
 pub trait Otp {
     /// Decodes a secret (given as an RFC4648 base32-encoded ASCII string)
     /// into a byte string
@@ -105,11 +128,6 @@ pub trait Otp {
         let truncation_factor = u32::pow(10, target_digits_count);
 
         Ok((code & 0x7fffffff) % truncation_factor)
-    }
-
-    fn get_digits(&self) -> u32;
-    fn pad_code(&self, code: u32) -> String {
-        format!("{:0padding$}", code, padding = (self.get_digits() as usize))
     }
 
     fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String, OtpError>;

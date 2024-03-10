@@ -1,6 +1,6 @@
 use crate::{
     uri_helper::{self, otp_to_uri, OtpType, OtpUriInput},
-    Otp, OtpError, OtpHashAlgorithm,
+    Otp, OtpCode, OtpError, OtpHashAlgorithm,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,10 +12,6 @@ pub struct Totp {
 }
 
 impl Otp for Totp {
-    fn get_digits(&self) -> u32 {
-        self.digits
-    }
-
     fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String, OtpError> {
         otp_to_uri(OtpUriInput::Totp(self), user, issuer)
     }
@@ -67,13 +63,18 @@ impl Totp {
 
     /// Generates a Totp from the provided seconds since the UNIX epoch
     /// truncated to the specified number of digits
-    pub fn generate(&self, seconds_since_epoch: u64) -> Result<u32, OtpError> {
+    pub fn generate(&self, seconds_since_epoch: u64) -> Result<OtpCode, OtpError> {
         let calculated_time = seconds_since_epoch / self.period;
 
         let decoded = Self::decode_secret(self.secret.as_str())?;
         let digest = self.calc_digest(decoded.as_slice(), self.algorithm, calculated_time);
 
-        Self::encode_digest_truncated(digest.as_ref(), self.digits)
+        let code = Self::encode_digest_truncated(digest.as_ref(), self.digits)?;
+
+        Ok(OtpCode {
+            code,
+            digits: self.digits,
+        })
     }
 
     /// Validates a code in the given window
@@ -106,7 +107,7 @@ impl Totp {
         for i in 0..frames.len() {
             let generated_otp = self.generate(*frames.get(i).expect("Frame not in the vector."))?;
 
-            if generated_otp == otp_to_validate {
+            if generated_otp.integer() == otp_to_validate {
                 return Ok(Some(frames[i]));
             }
         }
@@ -174,7 +175,7 @@ mod tests {
             .with_digits(expected.len() as u32);
 
         let generated_otp = totp_base.generate(timestamp).unwrap();
-        assert_eq!(expected, totp_base.pad_code(generated_otp));
+        assert_eq!(expected, generated_otp.to_string());
     }
 
     #[rstest]
@@ -230,8 +231,8 @@ mod tests {
             totp_base.generate(0).unwrap()
         );
         assert_eq!(
-            expected_totp.pad_code(expected_totp.generate(0).unwrap()),
-            totp_base.pad_code(totp_base.generate(0).unwrap())
+            expected_totp.generate(0).unwrap(),
+            totp_base.generate(0).unwrap()
         );
     }
 }

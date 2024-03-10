@@ -1,6 +1,6 @@
 use crate::{
     uri_helper::{self, otp_to_uri, OtpType, OtpUriInput},
-    Otp, OtpError, OtpHashAlgorithm,
+    Otp, OtpCode, OtpError, OtpHashAlgorithm,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,10 +14,6 @@ pub struct Hotp {
 }
 
 impl Otp for Hotp {
-    fn get_digits(&self) -> u32 {
-        self.digits
-    }
-
     fn to_uri(&self, user: &str, issuer: Option<&str>) -> Result<String, OtpError> {
         otp_to_uri(OtpUriInput::Hotp(self), user, issuer)
     }
@@ -68,18 +64,23 @@ impl Hotp {
 
     /// Generates a HTOPT from the provided counter
     /// truncated to the specified number of digits
-    pub fn generate(&self, counter: u64) -> Result<u32, OtpError> {
+    pub fn generate(&self, counter: u64) -> Result<OtpCode, OtpError> {
         let decoded = Self::decode_secret(self.secret.as_str())?;
         let digest = self.calc_digest(decoded.as_slice(), self.algorithm, counter);
 
-        Self::encode_digest_truncated(digest.as_ref(), self.digits)
+        let code = Self::encode_digest_truncated(digest.as_ref(), self.digits)?;
+
+        Ok(OtpCode {
+            code,
+            digits: self.digits,
+        })
     }
 
     /// Generates a HTOPT from the provided counter
     /// truncated to the specified number of digits
     ///
     /// Also updates the internal counter
-    pub fn generate_and_update_counter(&mut self, counter: u64) -> Result<u32, OtpError> {
+    pub fn generate_and_update_counter(&mut self, counter: u64) -> Result<OtpCode, OtpError> {
         self.with_counter(counter);
         self.generate(counter)
     }
@@ -106,7 +107,7 @@ mod tests {
     fn hotp(#[case] counter: u64, #[case] expected: u32) {
         let hotp = Hotp::new("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_string());
 
-        assert_eq!(hotp.generate(counter).unwrap(), expected);
+        assert_eq!(hotp.generate(counter).unwrap().integer(), expected);
     }
 
     #[rstest]
@@ -162,8 +163,8 @@ mod tests {
             generated_hotp.generate(generated_hotp.counter).unwrap()
         );
         assert_eq!(
-            expected_hotp.pad_code(expected_hotp.generate(expected_hotp.counter).unwrap()),
-            generated_hotp.pad_code(generated_hotp.generate(generated_hotp.counter).unwrap())
+            expected_hotp.generate(expected_hotp.counter).unwrap(),
+            generated_hotp.generate(generated_hotp.counter).unwrap()
         );
     }
 }
