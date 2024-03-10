@@ -5,12 +5,16 @@ pub(crate) mod uri_helper;
 use core::num;
 use std::{fmt::Display, str::FromStr};
 
-use ring::hmac;
+use hmac::{Hmac, Mac};
+use sha1::Sha1;
+use sha2::{Sha256, Sha512};
 
 #[derive(Debug, thiserror::Error)]
 pub enum OtpError {
     #[error("Secret decode error")]
     SecretDecode(data_encoding::DecodeError),
+    #[error("The HMAC failed initializing")]
+    HmacInitFailed(hmac::digest::InvalidLength),
     #[error("Invalid digest")]
     InvalidDigest(Vec<u8>),
     #[error("Invalid hashing algorithm, found {0}. Expected one of: SHA1, SHA256 or SHA512")]
@@ -98,15 +102,31 @@ pub trait Otp {
         decoded_secret: &[u8],
         algorithm: OtpHashAlgorithm,
         data: u64,
-    ) -> hmac::Tag {
-        let hmac_algorithm = match algorithm {
-            OtpHashAlgorithm::SHA1 => hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY,
-            OtpHashAlgorithm::SHA256 => hmac::HMAC_SHA256,
-            OtpHashAlgorithm::SHA512 => hmac::HMAC_SHA512,
+    ) -> Result<Vec<u8>, OtpError> {
+        let data = data.to_be_bytes();
+
+        let result: Vec<u8> = match algorithm {
+            OtpHashAlgorithm::SHA1 => {
+                let mut hmac = Hmac::<Sha1>::new_from_slice(decoded_secret)
+                    .map_err(OtpError::HmacInitFailed)?;
+                hmac.update(&data);
+                hmac.finalize().into_bytes().to_vec()
+            }
+            OtpHashAlgorithm::SHA256 => {
+                let mut hmac = Hmac::<Sha256>::new_from_slice(decoded_secret)
+                    .map_err(OtpError::HmacInitFailed)?;
+                hmac.update(&data);
+                hmac.finalize().into_bytes().to_vec()
+            }
+            OtpHashAlgorithm::SHA512 => {
+                let mut hmac = Hmac::<Sha512>::new_from_slice(decoded_secret)
+                    .map_err(OtpError::HmacInitFailed)?;
+                hmac.update(&data);
+                hmac.finalize().into_bytes().to_vec()
+            }
         };
 
-        let key = hmac::Key::new(hmac_algorithm, decoded_secret);
-        hmac::sign(&key, &data.to_be_bytes())
+        Ok(result)
     }
 
     /// Encodes the HMAC digest into a truncated integer.

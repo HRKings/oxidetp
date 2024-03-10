@@ -68,7 +68,7 @@ impl Hotp {
         let decoded = Self::decode_secret(self.secret.as_str())?;
         let digest = self.calc_digest(decoded.as_slice(), self.algorithm, counter);
 
-        let code = Self::encode_digest_truncated(digest.as_ref(), self.digits)?;
+        let code = Self::encode_digest_truncated(digest?.as_ref(), self.digits)?;
 
         Ok(OtpCode {
             code,
