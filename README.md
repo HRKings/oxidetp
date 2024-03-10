@@ -73,6 +73,15 @@ In case of TOTPs, the library does not provide a timestamp implementation, inste
 
 If the necessity arises, I will implement those time functions into the code. For now, examples are provided for both crates
 
+## Running the examples
+
+If you have [just](https://github.com/casey/just) installed (I recommend it if you don't), you can run the examples with:
+
+```shell
+just example-chrono
+just example-time
+```
+
 ## References
 
 - <https://github.com/google/google-authenticator/wiki/Key-Uri-Format>
