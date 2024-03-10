@@ -2,7 +2,6 @@ use std::{borrow::Cow, str::FromStr};
 
 use crate::{OTPHashAlgorithm, OTP};
 
-use anyhow::{anyhow, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TOTP {
@@ -108,7 +107,7 @@ impl TOTP {
 
     /// Generates a TOTP from the provided seconds since the UNIX epoch
     /// truncated to the specified number of digits
-    pub fn generate(&self, seconds_since_epoch: u64) -> Result<u32> {
+    pub fn generate(&self, seconds_since_epoch: u64) -> Result<u32, OtpError> {
         let calculated_time = seconds_since_epoch / self.period;
 
         let decoded = Self::decode_secret(self.secret.as_str())?;
@@ -128,7 +127,7 @@ impl TOTP {
         seconds_since_epoch: u64,
         past_frames: u64,
         future_frames: u64,
-    ) -> Result<Option<u64>> {
+    ) -> Result<Option<u64>, OtpError> {
         let mut frames = vec![seconds_since_epoch];
 
         for i in 1..=past_frames {

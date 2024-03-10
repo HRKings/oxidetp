@@ -2,7 +2,6 @@ use std::{borrow::Cow, str::FromStr};
 
 use crate::{OTPHashAlgorithm, OTP};
 
-use anyhow::{anyhow, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HOTP {
@@ -121,7 +120,7 @@ impl HOTP {
 
     /// Generates a HTOPT from the provided counter
     /// truncated to the specified number of digits
-    pub fn generate(&self, counter: u64) -> Result<u32> {
+    pub fn generate(&self, counter: u64) -> Result<u32, OtpError> {
         let decoded = Self::decode_secret(self.secret.as_str())?;
         let digest = self.calc_digest(decoded.as_slice(), self.algorithm, counter);
 
@@ -132,7 +131,7 @@ impl HOTP {
     /// truncated to the specified number of digits
     ///
     /// Also updates the internal counter
-    pub fn generate_and_update_counter(&mut self, counter: u64) -> Result<u32> {
+    pub fn generate_and_update_counter(&mut self, counter: u64) -> Result<u32, OtpError> {
         self.with_counter(counter);
         self.generate(counter)
     }
