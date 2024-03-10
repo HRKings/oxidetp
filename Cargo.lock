@@ -350,8 +350,6 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 name = "oxidetp"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "chrono",
  "data-encoding",
  "hmac",
  "pretty_assertions",
@@ -359,7 +357,6 @@ dependencies = [
  "sha1",
  "sha2",
  "thiserror",
- "time",
  "url",
 ]
 
@@ -615,6 +612,24 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "totp-chrono"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "oxidetp",
+]
+
+[[package]]
+name = "totp-time"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "oxidetp",
+ "time",
+]
 
 [[package]]
 name = "typenum"

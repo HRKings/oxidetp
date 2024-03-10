@@ -11,7 +11,7 @@ release:
     cargo build --release
 
 example-chrono:
-        cargo run --example totp_chrono
+    cargo run -p totp-chrono
 
 example-time:
-    cargo run --example totp_time
+    cargo run -p totp-time
