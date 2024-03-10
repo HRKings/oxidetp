@@ -34,19 +34,31 @@ impl Totp {
     /// (TOTP) given an RFC4648 base32 encoded secret, the period in seconds,
     /// and a skew in seconds.
     ///
-    /// Obs.: This method defaults to a 6-digit code.
-    pub fn new(secret: String, algorithm: OtpHashAlgorithm, period: u64) -> Self {
+    /// Obs.: This method defaults to the SHA1 hash, a 6-digit code and a period of 30 seconds
+    pub fn new(secret: String) -> Self {
         Self {
             secret,
-            algorithm,
-            period,
+            algorithm: OtpHashAlgorithm::SHA1,
+            period: 30,
             digits: 6,
         }
     }
 
+    ///  Sets hashing algorithm
+    pub fn with_algorithm(&mut self, algorithm: OtpHashAlgorithm) -> &mut Self {
+        self.algorithm = algorithm;
+
+        self
+    }
+
+    ///  Sets the period in seconds
+    pub fn with_period(&mut self, period: u64) -> &mut Self {
+        self.period = period;
+
+        self
+    }
+
     ///  Sets the number of digits to generate
-    ///
-    /// WARNING: A digit count different from 6 is not tested
     pub fn with_digits(&mut self, digits: u32) -> &mut Self {
         self.digits = digits;
 
@@ -156,8 +168,10 @@ mod tests {
         #[case] timestamp: u64,
         #[case] expected: &str,
     ) {
-        let mut totp_base = Totp::new(secret, hash, 30);
-        totp_base.with_digits(expected.len() as u32);
+        let mut totp_base = Totp::new(secret);
+        totp_base
+            .with_algorithm(hash)
+            .with_digits(expected.len() as u32);
 
         let generated_otp = totp_base.generate(timestamp).unwrap();
         assert_eq!(expected, totp_base.pad_code(generated_otp));
@@ -176,8 +190,11 @@ mod tests {
         #[case] period: u64,
         #[case] expected: &str,
     ) {
-        let mut totp_base = Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
-        totp_base.with_digits(digits);
+        let mut totp_base = Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string());
+        totp_base
+            .with_algorithm(hash)
+            .with_period(period)
+            .with_digits(digits);
 
         let generated_uri = totp_base
             .to_uri("john.doe@email.com", Some("ACME Co"))
@@ -199,9 +216,11 @@ mod tests {
         #[case] period: u64,
         #[case] input_uri: &str,
     ) {
-        let mut expected_totp =
-            Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash, period);
-        expected_totp.with_digits(digits);
+        let mut expected_totp = Totp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string());
+        expected_totp
+            .with_algorithm(hash)
+            .with_period(period)
+            .with_digits(digits);
 
         let totp_base = Totp::from_uri(input_uri).unwrap();
 

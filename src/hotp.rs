@@ -35,19 +35,24 @@ impl Hotp {
     /// Creates the config for the [HMAC-based One-time Password Algorithm](http://en.wikipedia.org/wiki/HMAC-based_One-time_Password_Algorithm)
     /// (HOTP) given an RFC4648 base32 encoded secret
     ///
-    /// Obs.: This method defaults to a 6-digit code.
-    pub fn new(secret: String, algorithm: OtpHashAlgorithm) -> Self {
+    /// Obs.: This method defaults to the SHA1 hash and a 6-digit code
+    pub fn new(secret: String) -> Self {
         Self {
             secret,
-            algorithm,
+            algorithm: OtpHashAlgorithm::SHA1,
             digits: 6,
             counter: 0,
         }
     }
 
+    ///  Sets hashing algorithm
+    pub fn with_algorithm(&mut self, algorithm: OtpHashAlgorithm) -> &mut Self {
+        self.algorithm = algorithm;
+
+        self
+    }
+
     ///  Sets the number of digits to generate
-    ///
-    /// WARNING: A digit count different from 6 is not tested
     pub fn with_digits(&mut self, digits: u32) -> &mut Self {
         self.digits = digits;
 
@@ -99,10 +104,7 @@ mod tests {
     #[case(8, 399871)]
     #[case(9, 520489)]
     fn hotp(#[case] counter: u64, #[case] expected: u32) {
-        let hotp = Hotp::new(
-            "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_string(),
-            OtpHashAlgorithm::SHA1,
-        );
+        let hotp = Hotp::new("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_string());
 
         assert_eq!(hotp.generate(counter).unwrap(), expected);
     }
@@ -120,9 +122,11 @@ mod tests {
         #[case] counter: u64,
         #[case] expected: &str,
     ) {
-        let mut hotp_base = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
-        hotp_base.with_digits(digits);
-        hotp_base.with_counter(counter);
+        let mut hotp_base = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string());
+        hotp_base
+            .with_algorithm(hash)
+            .with_digits(digits)
+            .with_counter(counter);
 
         let generated_uri = hotp_base
             .to_uri("john.doe@email.com", Some("ACME Co"))
@@ -144,9 +148,11 @@ mod tests {
         #[case] counter: u64,
         #[case] input_uri: &str,
     ) {
-        let mut expected_hotp = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string(), hash);
-        expected_hotp.with_digits(digits);
-        expected_hotp.with_counter(counter);
+        let mut expected_hotp = Hotp::new("HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ".to_string());
+        expected_hotp
+            .with_algorithm(hash)
+            .with_digits(digits)
+            .with_counter(counter);
 
         let generated_hotp = Hotp::from_uri(input_uri).unwrap();
 
