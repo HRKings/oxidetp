@@ -5,16 +5,23 @@ pub(crate) mod uri_helper;
 use core::num;
 use std::{fmt::Display, str::FromStr};
 
-use hmac::{Hmac, Mac};
-use sha1::Sha1;
-use sha2::{Sha256, Sha512};
+// Disallow no features
+#[cfg(not(any(feature = "use_aws_lc", feature = "use_ring")))]
+compile_error!("You must enable exactly one of: `use_aws_lc` or `use_ring`.");
+
+// Disallow both features at once
+#[cfg(all(feature = "use_aws_lc", feature = "use_ring"))]
+compile_error!("Features `use_aws_lc` and `use_ring` cannot be enabled at the same time.");
+
+#[cfg(feature = "use_aws_lc")]
+use aws_lc_rs::{hmac};
+#[cfg(feature = "use_ring")]
+use ring::hmac;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OtpError {
     #[error("Secret decode error")]
     SecretDecode(data_encoding::DecodeError),
-    #[error("The HMAC failed initializing")]
-    HmacInitFailed(hmac::digest::InvalidLength),
     #[error("Invalid digest")]
     InvalidDigest(Vec<u8>),
     #[error("Invalid hashing algorithm, found {0}. Expected one of: SHA1, SHA256 or SHA512")]
@@ -97,36 +104,31 @@ pub trait Otp {
     }
 
     /// Calculates the HMAC digest for the given secret.
+    ///
+    /// # Panics
+    /// If the HMAC context cannot be constructed
     fn calc_digest(
         &self,
         decoded_secret: &[u8],
         algorithm: OtpHashAlgorithm,
         data: u64,
-    ) -> Result<Vec<u8>, OtpError> {
+    ) -> Vec<u8> {
         let data = data.to_be_bytes();
 
-        let result: Vec<u8> = match algorithm {
+        let key = match algorithm {
             OtpHashAlgorithm::SHA1 => {
-                let mut hmac = Hmac::<Sha1>::new_from_slice(decoded_secret)
-                    .map_err(OtpError::HmacInitFailed)?;
-                hmac.update(&data);
-                hmac.finalize().into_bytes().to_vec()
+                hmac::Key::new(hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY, decoded_secret)
             }
             OtpHashAlgorithm::SHA256 => {
-                let mut hmac = Hmac::<Sha256>::new_from_slice(decoded_secret)
-                    .map_err(OtpError::HmacInitFailed)?;
-                hmac.update(&data);
-                hmac.finalize().into_bytes().to_vec()
+                hmac::Key::new(hmac::HMAC_SHA256, decoded_secret)
             }
             OtpHashAlgorithm::SHA512 => {
-                let mut hmac = Hmac::<Sha512>::new_from_slice(decoded_secret)
-                    .map_err(OtpError::HmacInitFailed)?;
-                hmac.update(&data);
-                hmac.finalize().into_bytes().to_vec()
+                hmac::Key::new(hmac::HMAC_SHA512, decoded_secret)
             }
         };
 
-        Ok(result)
+        let result = hmac::sign(&key, &data).as_ref().to_vec();
+        result
     }
 
     /// Encodes the HMAC digest into a truncated integer.
