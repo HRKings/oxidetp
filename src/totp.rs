@@ -123,57 +123,43 @@ impl Totp {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use rstest::{fixture, rstest};
+    use rstest::rstest;
 
     use crate::{totp::Totp, Otp, OtpHashAlgorithm};
 
-    #[fixture]
-    #[once]
-    pub fn sha1_secret() -> String {
-        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_string()
-    }
-
-    #[fixture]
-    #[once]
-    pub fn sha256_secret() -> String {
-        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA".to_string()
-    }
-
-    #[fixture]
-    #[once]
-    pub fn sha512_secret() -> String {
-        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA".to_string()
-    }
+    static SHA1_SECRET: &str = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    static SHA256_SECRET: &str = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA";
+    static SHA512_SECRET: &str = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA";
 
     #[rstest]
-    #[case(sha1_secret(), "sha1", 59, "94287082")]
-    #[case(sha256_secret(), "sha256", 59, "46119246")]
-    #[case(sha512_secret(), "sha512", 59, "90693936")]
-    #[case(sha1_secret(), "sha1", 1111111109, "07081804")]
-    #[case(sha256_secret(), "sha256", 1111111109, "68084774")]
-    #[case(sha512_secret(), "sha512", 1111111109, "25091201")]
-    #[case(sha1_secret(), "sha1", 1111111111, "14050471")]
-    #[case(sha256_secret(), "sha256", 1111111111, "67062674")]
-    #[case(sha512_secret(), "sha512", 1111111111, "99943326")]
-    #[case(sha1_secret(), "sha1", 1234567890, "89005924")]
-    #[case(sha256_secret(), "sha256", 1234567890, "91819424")]
-    #[case(sha512_secret(), "sha512", 1234567890, "93441116")]
-    #[case(sha1_secret(), "sha1", 2000000000, "69279037")]
-    #[case(sha256_secret(), "sha256", 2000000000, "90698825")]
-    #[case(sha512_secret(), "sha512", 2000000000, "38618901")]
-    #[case(sha1_secret(), "sha1", 20000000000, "65353130")]
-    #[case(sha256_secret(), "sha256", 20000000000, "77737706")]
-    #[case(sha512_secret(), "sha512", 20000000000, "47863826")]
-    #[case(sha1_secret(), "sha1", 20000000000, "353130")]
-    #[case(sha256_secret(), "sha256", 20000000000, "737706")]
-    #[case(sha512_secret(), "sha512", 20000000000, "863826")]
+    #[case(SHA1_SECRET, "sha1", 59, "94287082")]
+    #[case(SHA256_SECRET, "sha256", 59, "46119246")]
+    #[case(SHA512_SECRET, "sha512", 59, "90693936")]
+    #[case(SHA1_SECRET, "sha1", 1111111109, "07081804")]
+    #[case(SHA256_SECRET, "sha256", 1111111109, "68084774")]
+    #[case(SHA512_SECRET, "sha512", 1111111109, "25091201")]
+    #[case(SHA1_SECRET, "sha1", 1111111111, "14050471")]
+    #[case(SHA256_SECRET, "sha256", 1111111111, "67062674")]
+    #[case(SHA512_SECRET, "sha512", 1111111111, "99943326")]
+    #[case(SHA1_SECRET, "sha1", 1234567890, "89005924")]
+    #[case(SHA256_SECRET, "sha256", 1234567890, "91819424")]
+    #[case(SHA512_SECRET, "sha512", 1234567890, "93441116")]
+    #[case(SHA1_SECRET, "sha1", 2000000000, "69279037")]
+    #[case(SHA256_SECRET, "sha256", 2000000000, "90698825")]
+    #[case(SHA512_SECRET, "sha512", 2000000000, "38618901")]
+    #[case(SHA1_SECRET, "sha1", 20000000000, "65353130")]
+    #[case(SHA256_SECRET, "sha256", 20000000000, "77737706")]
+    #[case(SHA512_SECRET, "sha512", 20000000000, "47863826")]
+    #[case(SHA1_SECRET, "sha1", 20000000000, "353130")]
+    #[case(SHA256_SECRET, "sha256", 20000000000, "737706")]
+    #[case(SHA512_SECRET, "sha512", 20000000000, "863826")]
     fn totp_test(
-        #[case] secret: String,
+        #[case] secret: &str,
         #[case] hash: OtpHashAlgorithm,
         #[case] timestamp: u64,
         #[case] expected: &str,
     ) {
-        let mut totp_base = Totp::new(secret);
+        let mut totp_base = Totp::new(secret.to_string());
         totp_base
             .with_algorithm(hash)
             .with_digits(expected.len() as u32);
