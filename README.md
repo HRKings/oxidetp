@@ -82,6 +82,16 @@ just example-chrono
 just example-time
 ```
 
+## A note about security
+Starting on release v2.0.0, this crate switches from RustCrypto (https://github.com/RustCrypto/MACs, https://github.com/RustCrypto/hashes) to [aws-lc-rs](https://github.com/aws/aws-lc-rs), this was done to provide FIPS support if needed.
+
+You can use [ring](https://github.com/briansmith/ring) instead if you do not want to use the AWS crate by disabling the default features and enabling the `use_ring` feature.
+
+```toml
+[dependencies]
+oxidetp = { version = "2.0.0",  default-features = false, features = [ "use_ring" ] }
+```
+
 ## References
 
 - <https://github.com/google/google-authenticator/wiki/Key-Uri-Format>
